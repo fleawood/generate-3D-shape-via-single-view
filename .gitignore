@@ -1,0 +1,4 @@
+__pycache__
+models/
+old_models/
+.idea/
