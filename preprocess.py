@@ -4,23 +4,6 @@ import zipfile
 import json
 import numpy as np
 
-#
-# def extract_data(data_dir):
-#     for sub_dir in ('train', 'test'):
-#         print("processing dir '%s'" % sub_dir)
-#         data_sub_dir = os.path.join(data_dir, sub_dir)
-#         _, dir_names, file_names = next(os.walk(data_sub_dir))
-#         for file_name in file_names:
-#             with zipfile.ZipFile(os.path.join(data_sub_dir, file_name)) as zf:
-#                 print("extracting file '%s' ... " % file_name, end="", flush=True)
-#                 category_name, _ = os.path.splitext(file_name)
-#                 extracted_dir_name = os.path.join(data_sub_dir, category_name)
-#                 if category_name in dir_names:
-#                     print("already extracted, skip")
-#                 else:
-#                     zf.extractall(extracted_dir_name)
-#                     print("done")
-
 
 def extract_data(data_dir):
     print("processing ShapeNetCore Data")
@@ -36,7 +19,6 @@ def extract_data(data_dir):
                 for file in zf.namelist():
                     if file.startswith(extracted_dir_name):
                         zf.extract(file, data_dir)
-                # zf.extract(extracted_dir_name)
                 print("done")
 
 
@@ -97,54 +79,6 @@ def process_data(data_dir, index_dir, train_ratio, valid_ratio, test_ratio):
     print('done')
 
 
-# def process_data(data_dir, index_dir):
-#     os.makedirs(index_dir, exist_ok=True)
-#     index = list()
-#     labels = []
-#     # ONLY for benchmark data
-#     for sub_dir in ('train', 'test'):
-#         data_sub_dir = os.path.join(data_dir, sub_dir)
-#         index_sub_dir = os.path.join(index_dir, sub_dir)
-#         os.makedirs(index_sub_dir, exist_ok=True)
-#         processed_data = dict()
-#         _, dir_names, _ = next(os.walk(data_sub_dir))
-#         for dir_name in dir_names:
-#             # use rgb
-#             models = set()
-#             view_points = set()
-#             current_dir = os.path.join(data_sub_dir, dir_name, dir_name + '_depth_rgb')
-#             images = os.listdir(current_dir)
-#             current_dir_data = {}
-#             for image in images:
-#                 image_name, _ = os.path.splitext(image)
-#                 _, model, _, view_point = image_name.rsplit('_', 3)
-#                 models.add(model)
-#                 view_points.add(view_point)
-#             assert len(models) * len(view_points) == len(images)
-#
-#             for model in models:
-#                 current_dir_data[model] = [None] * len(view_points)
-#
-#             for image in images:
-#                 image_name, _ = os.path.splitext(image)
-#                 _, model, _, view_point = image_name.rsplit('_', 3)
-#                 current_dir_data[model][int(view_point)] = os.path.join(current_dir, image)
-#             processed_data[dir_name] = current_dir_data
-#
-#         labels = sorted(dir_names)
-#         inverse_labels = {v: k for k, v in enumerate(labels)}
-#         for dir_name, current_dir_data in processed_data.items():
-#             label = inverse_labels[dir_name]
-#             for files in current_dir_data.values():
-#                 index.append((files, label))
-#
-#         with open(os.path.join(index_sub_dir, 'index.json'), "w") as file:
-#             json.dump(index, file)
-#
-#     with open(os.path.join(index_dir, 'labels.json'), "w") as file:
-#         json.dump(labels, file)
-
-
 def main(args):
     data_dir = args.data_dir
     index_dir = args.index_dir
@@ -163,13 +97,11 @@ if __name__ == '__main__':
         "--data_dir",
         help="data dir",
         default='/home/fz/Downloads/nonbenchmark',
-        # default='/data/fz/pre-rendered_ModelNet40'
     )
     parser.add_argument(
         "--index_dir",
         help="index dir",
         default='/home/fz/Downloads/nonbenchmark/index'
-        # default='/data/fz/pre-rendered_ModelNet40_index'
     )
     parser.add_argument(
         "--skip_extract",

@@ -9,7 +9,6 @@ class DepthDataset(Dataset):
     def __init__(self, index_filename):
         with open(index_filename, "r") as file:
             self.index = json.load(file)
-        # self.num_cats = num_cats
 
     def __len__(self):
         return len(self.index)
