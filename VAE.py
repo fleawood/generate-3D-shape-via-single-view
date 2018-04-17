@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.legacy.nn import Identity
 from torch.autograd import Variable
 
 
@@ -15,6 +14,14 @@ from torch.autograd import Variable
 #
 #     def forward(self):
 #         pass
+
+class Identity(nn.Module):
+    def __init__(self):
+        super(Identity, self).__init__()
+
+    def forward(self, x):
+        return x
+
 
 class View(nn.Module):
     def __init__(self, *size):
@@ -42,18 +49,16 @@ class Sampler:
 class ShortCut(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding, dilation, conv_trans=False):
         super(ShortCut, self).__init__()
-        if in_channels == out_channels:
-            self.shortcut = Identity()
+        if conv_trans:
+            self.shortcut = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride,
+                                               padding=padding, dilation=dilation)
         else:
-            if conv_trans:
-                self.shortcut = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride,
-                                                   padding=padding, dilation=dilation)
-            else:
-                self.shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride,
-                                          padding=padding, dilation=dilation)
+            self.shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride,
+                                      padding=padding, dilation=dilation)
+        self.bn = nn.BatchNorm2d(out_channels)
 
     def forward(self, x):
-        x = self.shortcut(x)
+        x = self.bn(self.shortcut(x))
         return x
 
     # make syntax inspection happy
@@ -70,20 +75,21 @@ class ResidualBlock(nn.Module):
         else:
             self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding,
                                    dilation=dilation)
-        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.conv1_bn = nn.BatchNorm2d(out_channels)
 
         if conv_trans:
             self.conv2 = nn.ConvTranspose2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
         else:
             self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.conv2_bn = nn.BatchNorm2d(out_channels)
         self.shortcut = ShortCut(in_channels, out_channels, kernel_size, stride, padding, dilation, conv_trans)
 
     def forward(self, x):
-        y = self.conv1(x)
-        y = F.relu(self.bn1(y))
-        y = self.conv2(y)
-        z = self.shortcut(x)
-        return y + z
+        residual = self.shortcut(x)
+        x = F.relu(self.conv1_bn(self.conv1(x)))
+        x = self.conv2_bn(self.conv2(x))
+        x += residual
+        return x
 
     # make syntax inspection happy
     def __call__(self, *args, **kwargs):
@@ -91,46 +97,41 @@ class ResidualBlock(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, in_channels, out_channels, z_dim, num_cats, is_single=False):
+    def __init__(self, z_dim):
         super(Encoder, self).__init__()
-        # for single view point
-        in_channels = 1
-        # conv1
-        self.conv1 = nn.Conv2d(in_channels, out_channels * 4, kernel_size=4, stride=2, padding=1, dilation=2)
-        self.bn1 = nn.BatchNorm2d(num_features=out_channels * 4)
+        # conv1 224 -> 110
+        self.conv1 = nn.Conv2d(1, 240, kernel_size=4, stride=2, padding=1, dilation=2)
+        self.conv1_bn = nn.BatchNorm2d(num_features=240)
 
-        # res block
-        self.res1 = ResidualBlock(out_channels * 4, out_channels * 6, kernel_size=4, stride=2, padding=1, dilation=2)
-        self.res2 = ResidualBlock(out_channels * 6, out_channels * 8, kernel_size=4, stride=2, padding=1, dilation=2)
-        self.res3 = ResidualBlock(out_channels * 8, out_channels * 6, kernel_size=4, stride=2, padding=1, dilation=2)
-        self.res4 = ResidualBlock(out_channels * 6, out_channels, kernel_size=4, stride=2, padding=1, dilation=2)
+        # res blocks
+        # 110 -> 53
+        self.res1 = ResidualBlock(240, 320, kernel_size=4, stride=2, padding=1, dilation=2)
+        # 53 -> 25
+        self.res2 = ResidualBlock(320, 400, kernel_size=4, stride=2, padding=1, dilation=2)
+        # 25 -> 11
+        self.res3 = ResidualBlock(400, 400, kernel_size=4, stride=2, padding=1, dilation=2)
+        # 11 -> 4
+        self.res4 = ResidualBlock(400, 320, kernel_size=4, stride=2, padding=1, dilation=2)
 
-        self.bn2 = nn.BatchNorm2d(num_features=out_channels)
-
-        self.view1 = View(-1, out_channels * 4 * 4)
+        self.view1 = View(-1, 320 * 4 * 4)
 
         # mean, var
-        self.linear1 = nn.Linear(out_channels * 4 * 4, z_dim)
-        self.linear2 = nn.Linear(out_channels * 4 * 4, z_dim)
-
-        # category
-        self.linear3 = nn.Linear(out_channels * 4 * 4, out_channels * 4 * 2)
-        self.linear4 = nn.Linear(out_channels * 4 * 2, num_cats)
+        self.linear1 = nn.Linear(320 * 4 * 4, z_dim)
+        self.linear2 = nn.Linear(320 * 4 * 4, z_dim)
 
     def forward(self, x):
-        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.conv1_bn(self.conv1(x)))
 
-        x = self.res1(x)
-        x = self.res2(x)
-        x = self.res3(x)
-        x = self.res4(x)
-        x = self.bn2(x)
+        x = F.relu(self.res1(x))
+        x = F.relu(self.res2(x))
+        x = F.relu(self.res3(x))
+        x = F.relu(self.res4(x))
+
         x = self.view1(x)
 
         mean = self.linear1(x)
         var = self.linear2(x)
-        category = self.linear4(F.relu(self.linear3(x)))
-        return mean, var, category
+        return mean, var
 
     # make syntax inspection happy
     def __call__(self, *args, **kwargs):
@@ -138,48 +139,50 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, in_channels, out_channels, z_dim, num_cats):
+    def __init__(self, z_dim):
         super(Decoder, self).__init__()
         # from z and c
-        self.linear1 = nn.Linear(z_dim + num_cats, out_channels * 2 * 4 * 4)
-        self.view1 = View(-1, out_channels * 2, 4, 4)
-        self.bn1 = nn.BatchNorm2d(out_channels * 2)
+        self.linear1 = nn.Linear(z_dim, 120 * 4 * 4)
+        self.view1 = View(-1, 120, 4, 4)
+        self.bn1 = nn.BatchNorm2d(120)
 
         # res block
-        self.res1 = ResidualBlock(out_channels * 2, out_channels * 6, kernel_size=4, conv_trans=True)
-        self.res2 = ResidualBlock(out_channels * 6, out_channels * 8, kernel_size=4, stride=2, padding=1,
-                                  conv_trans=True)
-        self.res3 = ResidualBlock(out_channels * 8, out_channels * 7, kernel_size=4, stride=2, padding=1,
-                                  conv_trans=True)
-        self.bn2 = nn.BatchNorm2d(out_channels * 7)
+        # 4 -> 7
+        self.res1 = ResidualBlock(120, 320, kernel_size=4, conv_trans=True)
+        # 7 -> 14
+        self.res2 = ResidualBlock(320, 400, kernel_size=4, stride=2, padding=1, conv_trans=True)
+        # 14 -> 28
+        self.res3 = ResidualBlock(400, 480, kernel_size=4, stride=2, padding=1, conv_trans=True)
+        # 28 -> 56
+        self.res4 = ResidualBlock(480, 320, kernel_size=4, stride=2, padding=1, conv_trans=True)
+        # 56 -> 112
+        self.res5 = ResidualBlock(320, 240, kernel_size=4, stride=2, padding=1, conv_trans=True)
 
-        # transpose conv1
-        self.conv1 = nn.ConvTranspose2d(out_channels * 7, out_channels * 6, kernel_size=4, stride=2, padding=1)
-        self.bn3 = nn.BatchNorm2d(out_channels * 6)
-
-        # transpose conv2
-        self.conv2 = nn.ConvTranspose2d(out_channels * 6, out_channels * 4, kernel_size=4, stride=2, padding=1)
-        self.bn4 = nn.BatchNorm2d(out_channels * 4)
+        # # transpose conv1
+        # self.conv1 = nn.ConvTranspose2d(out_channels * 7, out_channels * 6, kernel_size=4, stride=2, padding=1)
+        # self.bn3 = nn.BatchNorm2d(out_channels * 6)
+        #
+        # # transpose conv2
+        # self.conv2 = nn.ConvTranspose2d(out_channels * 6, out_channels * 4, kernel_size=4, stride=2, padding=1)
+        # self.bn4 = nn.BatchNorm2d(out_channels * 4)
 
         # depth map
-        self.conv3 = nn.ConvTranspose2d(out_channels * 4, in_channels, kernel_size=4, stride=2, padding=1)
-
-        # silhouette
-        # self.conv4 = nn.ConvTranspose2d(out_channels * 4, in_channels, kernel_size=4, stride=2, padding=1)
+        # 112 -> 224
+        self.conv1 = nn.ConvTranspose2d(240, 20, kernel_size=4, stride=2, padding=1)
 
     def forward(self, x):
         x = F.relu(self.bn1(self.view1(self.linear1(x))))
-        x = self.res1(x)
-        x = self.res2(x)
-        x = self.res3(x)
-        x = self.bn2(x)
+        x = F.relu(self.res1(x))
+        x = F.relu(self.res2(x))
+        x = F.relu(self.res3(x))
+        x = F.relu(self.res4(x))
+        x = F.relu(self.res5(x))
 
-        x = F.relu(self.bn3(self.conv1(x)))
-        x = F.relu(self.bn4(self.conv2(x)))
+        # x = F.relu(self.bn3(self.conv1(x)))
+        # x = F.relu(self.bn4(self.conv2(x)))
 
-        depth_map = F.sigmoid(self.conv3(x))
-        # silhouette = F.sigmoid(self.conv4(x))
-        return depth_map
+        x = F.sigmoid(self.conv1(x))
+        return x
 
     # make syntax inspection happy
     def __call__(self, *args, **kwargs):
@@ -187,21 +190,21 @@ class Decoder(nn.Module):
 
 
 class VAE(nn.Module):
-    def __init__(self, num_cats):
+    def __init__(self):
         super(VAE, self).__init__()
         in_channels = 20
         out_channels = 60
-        z_dim = 200
+        z_dim = 100
 
-        self.encoder = Encoder(in_channels, out_channels, z_dim, num_cats)
+        self.encoder = Encoder(z_dim)
         self.sampler = Sampler(z_dim)
-        self.decoder = Decoder(in_channels, out_channels, z_dim, num_cats)
+        self.decoder = Decoder(z_dim)
 
-    def forward(self, x, c):
-        mean, var, category = self.encoder(x)
+    def forward(self, x):
+        mean, var = self.encoder(x)
         z = self.sampler(mean, var)
-        depth_maps = self.decoder(torch.cat((z, c), dim=1))
-        return depth_maps, mean, var, category
+        reconstruction = self.decoder(z)
+        return reconstruction, mean, var
 
     # make syntax inspection happy
     def __call__(self, *args, **kwargs):

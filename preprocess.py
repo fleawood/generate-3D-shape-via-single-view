@@ -33,11 +33,11 @@ def process_data(data_dir, index_dir, train_ratio, valid_ratio, test_ratio):
             continue
         labels.append(dir_name)
         category_name, _, _ = dir_name.rsplit('_', 2)
-        print('Found category %s, processing ... ' % category_name, end="", flush=True)
+        print("Found category %s, processing ... " % category_name, end="", flush=True)
         models = set()
         view_points = set()
         images = os.listdir(os.path.join(data_dir, dir_name))
-        dir_data = {}
+        dir_data = dict()
         for image in images:
             image_name, _ = os.path.splitext(image)
             _, model, _, view_point = image_name.rsplit('_', 3)
@@ -50,22 +50,32 @@ def process_data(data_dir, index_dir, train_ratio, valid_ratio, test_ratio):
             image_name, _ = os.path.splitext(image)
             _, model, _, view_point = image_name.rsplit('_', 3)
             dir_data[model][int(view_point)] = os.path.join(data_dir, dir_name, image)
-        all_data[dir_name] = dir_data
+        all_data[category_name] = dir_data
         print('done')
     print('Collecting information ... ', end="", flush=True)
-    inverse_labels = {v: k for k, v in enumerate(labels)}
-    index = list()
-    for dir_name, dir_data in all_data.items():
-        label = inverse_labels[dir_name]
-        for files in dir_data.values():
-            index.append((files, label))
-
-    np.random.shuffle(index)
-    sep1 = int(train_ratio * len(index))
-    sep2 = sep1 + int(valid_ratio * len(index))
-    train_index = index[:sep1]
-    valid_index = index[sep1:sep2]
-    test_index = index[sep2:]
+    # inverse_labels = {v: k for k, v in enumerate(labels)}
+    # index = list()
+    # for dir_name, dir_data in all_data.items():
+    #     label = inverse_labels[dir_name]
+    #     for files in dir_data.values():
+    #         index.append((files, label))
+    train_index = dict()
+    valid_index = dict()
+    test_index = dict()
+    for category_name, dir_data in all_data.items():
+        sep1 = int(train_ratio * len(dir_data))
+        sep2 = int(valid_ratio * len(dir_data)) + sep1
+        index = list(dir_data.values())
+        np.random.shuffle(index)
+        train_index[category_name] = index[:sep1]
+        valid_index[category_name] = index[sep1: sep2]
+        test_index[category_name] = index[sep2:]
+    # np.random.shuffle(index)
+    # sep1 = int(train_ratio * len(index))
+    # sep2 = sep1 + int(valid_ratio * len(index))
+    # train_index = index[:sep1]
+    # valid_index = index[sep1:sep2]
+    # test_index = index[sep2:]
     print('done')
     print('Writing to disk ... ', end="", flush=True)
     with open(os.path.join(index_dir, 'labels.json'), "w") as file:
@@ -88,6 +98,8 @@ def main(args):
     train_ratio = args.train_ratio
     valid_ratio = args.valid_ratio
     test_ratio = args.test_ratio
+    assert train_ratio + valid_ratio + test_ratio == 1.0, \
+        "The sum of all ratios is not equal to 1"
     process_data(data_dir, index_dir, train_ratio, valid_ratio, test_ratio)
 
 
@@ -113,19 +125,19 @@ if __name__ == '__main__':
         "--train_ratio",
         help="the ratio of data used in training",
         type=float,
-        default=0.9
+        default=0.8
     )
     parser.add_argument(
         "--valid_ratio",
         help="the ratio of data used in validation",
         type=float,
-        default=0.05
+        default=0.1
     )
     parser.add_argument(
         "--test_ratio",
         help="the ratio of data used in testing",
         type=float,
-        default=0.05
+        default=0.1
     )
     args = parser.parse_args()
     main(args)

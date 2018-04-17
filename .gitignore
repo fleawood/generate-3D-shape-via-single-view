@@ -2,3 +2,5 @@ __pycache__
 models/
 old_models/
 .idea/
+all_view_all_category/
+single_view_all_category/
