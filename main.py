@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch import optim
 # from VAE import VAE
-from DepthDataset import DepthDataset
+from DepthDataset import DepthDataset, NyudDataset
 from torch.autograd import Variable, grad
 from torch.utils.data import DataLoader
 # from KLDCriterion import KLDCriterion
@@ -40,6 +40,18 @@ def init_weights(m):
         nn.init.constant(m.bias.data, 0)
 
 
+def nyud_test(vis, data_gen, autoencoder, prefix, env):
+    single_batch = next(data_gen)
+    real_single_view = Variable(single_batch['real_single_view']).cuda()
+    fake_all_views = autoencoder(real_single_view)
+    single_batch = real_single_view.size()[0]
+    for i in range(single_batch):
+        vis.image(torch.unsqueeze(real_single_view.data[i], 1).cpu().numpy(),
+                  opts=dict(title=prefix + "%d_real_single" % i), env=env)
+        vis.images(torch.unsqueeze(fake_all_views.data[i], 1).cpu().numpy(), nrow=5,
+                   opts=dict(title=prefix + "%d_fake_all" % i), env=env)
+
+
 def visual(vis, real_all_views, real_single_view, autoencoder, prefix, env):
     fake_all_views = autoencoder(real_single_view)
     batch_size = real_single_view.size()[0]
@@ -54,10 +66,13 @@ def visual(vis, real_all_views, real_single_view, autoencoder, prefix, env):
 
 
 def visual_single_batch(vis, data_gen, autoencoder, prefix, env):
+    autoencoder.eval()
     single_batch = next(data_gen)
     real_all_views = Variable(single_batch['real_all_views']).cuda()
     real_single_view = Variable(single_batch['real_single_view']).cuda()
     visual(vis, real_all_views, real_single_view, autoencoder, prefix, env)
+    # real_single_view.data[:, :, :80].zero_()
+    # visual(vis, real_all_views, real_single_view, autoencoder, prefix, env)
 
 
 def evaluate(valid_dataloader, vae, reconstruction_loss, KLD_loss, vis, prefix, env):
@@ -104,12 +119,13 @@ def train(train_dataloader, valid_dataloader, autoencoder, discriminator, g_opti
     print('Training data size: %d' % len(dataset))
     # in case you need
     # image_size = 224 * 224
-    num_iters = 20000
+    num_iters = 100
     num_critic_iters = 3
     num_gen_iters = 3
     data_gen = inf_data_gen(train_dataloader)
     for i in range(1, num_iters + 1):
         print("iter %d" % i)
+        autoencoder.train()
         for p in discriminator.parameters():
             p.requires_grad = True
         for p in autoencoder.parameters():
@@ -141,7 +157,7 @@ def train(train_dataloader, valid_dataloader, autoencoder, discriminator, g_opti
             d_fake = discriminator(fake_all_views)
             ae_loss = nn.MSELoss()(fake_all_views, real_all_views)
             g_loss = -torch.mean(d_fake)
-            if i < 1000:
+            if i <= 10000:
                 alpha = 1
                 beta = 0
             else:
@@ -152,45 +168,45 @@ def train(train_dataloader, valid_dataloader, autoencoder, discriminator, g_opti
             print("ae_loss: %f, g_loss: %f" % (ae_loss.data[0], g_loss.data[0]))
             loss.backward()
             g_optimizer.step()
-        if i % 200 == 0:
-            visual_single_batch(vis, data_gen, autoencoder, "iter %d" % i, category + "_" + str(i))
+        if i % 10 == 0:
+            visual_single_batch(vis, data_gen, autoencoder, "iter %d" % i, category)
             state_dicts = dict(autoencoder=autoencoder.state_dict(), discriminator=discriminator.state_dict())
-            torch.save(state_dicts, os.path.join(model_dir, "aegan_%d.pkl" % i))
+            # torch.save(state_dicts, os.path.join(model_dir, "aegan_%d.pkl" % i))
             test(train_dataloader, autoencoder)
             test(valid_dataloader, autoencoder)
 
-    # for i in range(model_epochs + 1, model_epochs + num_epochs + 1):
-    #     print('Starting epoch %d' % i)
-    #     ave_loss = 0.0
-    #     ave_r_loss = 0.0
-    #     ave_k_loss = 0.0
-    #
-    #     for _, sample_batched in enumerate(train_dataloader):
-    #         real_all_views = Variable(sample_batched['real_all_views']).cuda()
-    #         real_single_view = Variable(sample_batched['real_single_view']).cuda()
-    #         optimizer.zero_grad()
-    #         fake_all_views, mean, var = vae(real_single_view)
-    #         r_loss = reconstruction_loss(fake_all_views, real_all_views)
-    #         k_loss = KLD_loss(mean, var)
-    #         loss = r_loss + KLD_loss.coeff * k_loss
-    #         ave_r_loss += r_loss.data[0]
-    #         ave_k_loss += k_loss.data[0]
-    #         ave_loss += loss.data[0]
-    #         loss.backward()
-    #         optimizer.step()
-    #     ave_r_loss /= len(dataset)
-    #     ave_k_loss /= len(dataset)
-    #     ave_loss /= len(dataset)
-    #     print("loss: %f, Reconstruction loss: %f, KLD loss: %f" % (ave_loss, ave_r_loss, ave_k_loss))
-    #     scheduler.step(ave_loss)
-    #     torch.save(vae.state_dict(), os.path.join(model_dir, "vae_%d.pkl" % i))
-    #     test(train_dataloader, vae)
-    #     print('Finished epoch %d' % i)
-    #     if i % 5 == 0:
-    #         print("Evaluating result using validation dataset")
-    #         evaluate(valid_dataloader, vae, reconstruction_loss, KLD_loss, vis, "Epoch %d evaluation" % i,
-    #                  category + " " + str(i))
-    #         test(valid_dataloader, vae)
+            # for i in range(model_epochs + 1, model_epochs + num_epochs + 1):
+            #     print('Starting epoch %d' % i)
+            #     ave_loss = 0.0
+            #     ave_r_loss = 0.0
+            #     ave_k_loss = 0.0
+            #
+            #     for _, sample_batched in enumerate(train_dataloader):
+            #         real_all_views = Variable(sample_batched['real_all_views']).cuda()
+            #         real_single_view = Variable(sample_batched['real_single_view']).cuda()
+            #         optimizer.zero_grad()
+            #         fake_all_views, mean, var = vae(real_single_view)
+            #         r_loss = reconstruction_loss(fake_all_views, real_all_views)
+            #         k_loss = KLD_loss(mean, var)
+            #         loss = r_loss + KLD_loss.coeff * k_loss
+            #         ave_r_loss += r_loss.data[0]
+            #         ave_k_loss += k_loss.data[0]
+            #         ave_loss += loss.data[0]
+            #         loss.backward()
+            #         optimizer.step()
+            #     ave_r_loss /= len(dataset)
+            #     ave_k_loss /= len(dataset)
+            #     ave_loss /= len(dataset)
+            #     print("loss: %f, Reconstruction loss: %f, KLD loss: %f" % (ave_loss, ave_r_loss, ave_k_loss))
+            #     scheduler.step(ave_loss)
+            #     torch.save(vae.state_dict(), os.path.join(model_dir, "vae_%d.pkl" % i))
+            #     test(train_dataloader, vae)
+            #     print('Finished epoch %d' % i)
+            #     if i % 5 == 0:
+            #         print("Evaluating result using validation dataset")
+            #         evaluate(valid_dataloader, vae, reconstruction_loss, KLD_loss, vis, "Epoch %d evaluation" % i,
+            #                  category + " " + str(i))
+            #         test(valid_dataloader, vae)
 
 
 def calc_IU(real_all_views, fake_all_views):
@@ -279,10 +295,17 @@ def main(args):
         # evaluate(valid_dataloader, vae, reconstruction_loss, KLD_loss, vis, "Eval", category)
     elif mode == 'visualization':
         assert model is not None, "Visualization without specifying a model"
-        # visual_single_batch(vis, valid_dataloader, vae, "Visual", category)
+        visual_single_batch(vis, inf_data_gen(valid_dataloader), autoencoder, "Visual", category)
     elif mode == 'testing':
         assert model is not None, "Testing without specifying a model"
-        # test(test_dataloader, vae)
+        # test(test_dataloader, autoencoder)
+        visual_single_batch(vis, inf_data_gen(test_dataloader), autoencoder, "Test", category)
+    elif mode == 'nyud':
+        assert model is not None, "Testing nyud data without specifying a model"
+        nyud_index = os.path.join(index_dir, "nyud_index.json")
+        nyud_dataset = NyudDataset(nyud_index, category)
+        nyud_dataloader = DataLoader(nyud_dataset, batch_size=batch_size, shuffle=True, num_workers=3)
+        nyud_test(vis, inf_data_gen(nyud_dataloader), autoencoder, "Nyud", category)
 
 
 if __name__ == '__main__':
@@ -323,14 +346,14 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         "--mode",
-        help="choosing a mode from {training, evaluation, visualization, testing}",
-        choices=["training", "evaluation", "visualization", "testing"],
+        help="choosing a mode from {training, evaluation, visualization, testing, nyud}",
+        choices=["training", "evaluation", "visualization", "testing", "nyud"],
         default="training"
     )
     parser.add_argument(
         "--category",
         help="which kind of data used in training",
-        default="car"
+        default="chair"
     )
     args = parser.parse_args()
     main(args)

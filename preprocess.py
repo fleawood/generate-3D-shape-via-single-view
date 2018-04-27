@@ -89,18 +89,38 @@ def process_data(data_dir, index_dir, train_ratio, valid_ratio, test_ratio):
     print('done')
 
 
+def process_nyud(data_dir, index_dir):
+    print("Processing nyud data")
+    os.makedirs(index_dir, exist_ok=True)
+    _, dir_names, _ = next(os.walk(data_dir))
+    index = dict()
+    for dir_name in dir_names:
+        images = os.listdir(os.path.join(data_dir, dir_name))
+        index[dir_name] = [os.path.join(data_dir, dir_name, image) for image in images if
+                           os.path.splitext(image)[0].endswith("depth")]
+        # index[dir_name] = list(filter(lambda x: os.path.splitext(x)[0].endswith("depth"), images))
+    with open(os.path.join(index_dir, 'nyud_index.json'), "w") as file:
+        json.dump(index, file)
+    print("done")
+
+
 def main(args):
-    data_dir = args.data_dir
-    index_dir = args.index_dir
-    skip_extract = args.skip_extract
-    if not skip_extract:
-        extract_data(data_dir)
-    train_ratio = args.train_ratio
-    valid_ratio = args.valid_ratio
-    test_ratio = args.test_ratio
-    assert train_ratio + valid_ratio + test_ratio == 1.0, \
-        "The sum of all ratios is not equal to 1"
-    process_data(data_dir, index_dir, train_ratio, valid_ratio, test_ratio)
+    if not args.nyud:
+        data_dir = args.data_dir
+        index_dir = args.index_dir
+        skip_extract = args.skip_extract
+        if not skip_extract:
+            extract_data(data_dir)
+        train_ratio = args.train_ratio
+        valid_ratio = args.valid_ratio
+        test_ratio = args.test_ratio
+        assert train_ratio + valid_ratio + test_ratio == 1.0, \
+            "The sum of all ratios is not equal to 1"
+        process_data(data_dir, index_dir, train_ratio, valid_ratio, test_ratio)
+    else:
+        nyud_data_dir = args.nyud_data_dir
+        index_dir = args.index_dir
+        process_nyud(nyud_data_dir, index_dir)
 
 
 if __name__ == '__main__':
@@ -138,6 +158,17 @@ if __name__ == '__main__':
         help="the ratio of data used in testing",
         type=float,
         default=0.1
+    )
+    parser.add_argument(
+        "--nyud",
+        help="whether process nyud data",
+        type=bool,
+        default=False
+    )
+    parser.add_argument(
+        "--nyud_data_dir",
+        help="nyud data dir",
+        default='/home/fz/Downloads/nyud'
     )
     args = parser.parse_args()
     main(args)

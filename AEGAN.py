@@ -174,43 +174,43 @@ class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
         channels = [20, 120, 240, 360, 480, 360, 240]
-        # # 224 -> 112
-        # self.conv1 = nn.Conv2d(channels[0], channels[1], kernel_size=4, stride=2, padding=1)
-        # # 112 -> 56
-        # self.conv2 = nn.Conv2d(channels[1], channels[2], kernel_size=4, stride=2, padding=1)
-        # # 56 -> 28
-        # self.conv3 = nn.Conv2d(channels[2], channels[3], kernel_size=4, stride=2, padding=1)
-        # # 28 -> 14
-        # self.conv4 = nn.Conv2d(channels[3], channels[4], kernel_size=4, stride=2, padding=1)
-        # # 14 -> 7
-        # self.conv5 = nn.Conv2d(channels[4], channels[5], kernel_size=4, stride=2, padding=1)
-        # # 7 -> 4
-        # self.conv6 = nn.Conv2d(channels[5], channels[6], kernel_size=3, stride=2, padding=1)
+        # 224 -> 112
+        self.conv1 = nn.Conv2d(channels[0], channels[1], kernel_size=4, stride=2, padding=1)
+        # 112 -> 56
+        self.conv2 = nn.Conv2d(channels[1], channels[2], kernel_size=4, stride=2, padding=1)
+        # 56 -> 28
+        self.conv3 = nn.Conv2d(channels[2], channels[3], kernel_size=4, stride=2, padding=1)
+        # 28 -> 14
+        self.conv4 = nn.Conv2d(channels[3], channels[4], kernel_size=4, stride=2, padding=1)
+        # 14 -> 7
+        self.conv5 = nn.Conv2d(channels[4], channels[5], kernel_size=4, stride=2, padding=1)
+        # 7 -> 4
+        self.conv6 = nn.Conv2d(channels[5], channels[6], kernel_size=3, stride=2, padding=1)
 
         # 224 -> 112
-        self.conv1 = nn.Conv2d(channels[0], channels[1], kernel_size=3, padding=1)
-        # self.bn1 = nn.BatchNorm2d(channels[1])
-        self.maxpool1 = nn.MaxPool2d(kernel_size=2, stride=2)
-        # 112 -> 56
-        self.conv2 = nn.Conv2d(channels[1], channels[2], kernel_size=3, padding=1)
-        # self.bn2 = nn.BatchNorm2d(channels[2])
-        self.maxpool2 = nn.MaxPool2d(kernel_size=2, stride=2)
-        # 56 -> 28
-        self.conv3 = nn.Conv2d(channels[2], channels[3], kernel_size=3, padding=1)
-        # self.bn3 = nn.BatchNorm2d(channels[3])
-        self.maxpool3 = nn.MaxPool2d(kernel_size=2, stride=2)
-        # 28 -> 14
-        self.conv4 = nn.Conv2d(channels[3], channels[4], kernel_size=3, padding=1)
-        # self.bn4 = nn.BatchNorm2d(channels[4])
-        self.maxpool4 = nn.MaxPool2d(kernel_size=2, stride=2)
-        # 14 -> 7
-        self.conv5 = nn.Conv2d(channels[4], channels[5], kernel_size=3, padding=1)
-        # self.bn5 = nn.BatchNorm2d(channels[5])
-        self.maxpool5 = nn.MaxPool2d(kernel_size=2, stride=2)
-        # 7 -> 4
-        self.conv6 = nn.Conv2d(channels[5], channels[6], kernel_size=3, padding=1)
-        # self.bn6 = nn.BatchNorm2d(channels[6])
-        self.maxpool6 = nn.MaxPool2d(kernel_size=2, padding=1, stride=2)
+        # self.conv1 = nn.Conv2d(channels[0], channels[1], kernel_size=3, padding=1)
+        # # self.bn1 = nn.BatchNorm2d(channels[1])
+        # self.maxpool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+        # # 112 -> 56
+        # self.conv2 = nn.Conv2d(channels[1], channels[2], kernel_size=3, padding=1)
+        # # self.bn2 = nn.BatchNorm2d(channels[2])
+        # self.maxpool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+        # # 56 -> 28
+        # self.conv3 = nn.Conv2d(channels[2], channels[3], kernel_size=3, padding=1)
+        # # self.bn3 = nn.BatchNorm2d(channels[3])
+        # self.maxpool3 = nn.MaxPool2d(kernel_size=2, stride=2)
+        # # 28 -> 14
+        # self.conv4 = nn.Conv2d(channels[3], channels[4], kernel_size=3, padding=1)
+        # # self.bn4 = nn.BatchNorm2d(channels[4])
+        # self.maxpool4 = nn.MaxPool2d(kernel_size=2, stride=2)
+        # # 14 -> 7
+        # self.conv5 = nn.Conv2d(channels[4], channels[5], kernel_size=3, padding=1)
+        # # self.bn5 = nn.BatchNorm2d(channels[5])
+        # self.maxpool5 = nn.MaxPool2d(kernel_size=2, stride=2)
+        # # 7 -> 4
+        # self.conv6 = nn.Conv2d(channels[5], channels[6], kernel_size=3, padding=1)
+        # # self.bn6 = nn.BatchNorm2d(channels[6])
+        # self.maxpool6 = nn.MaxPool2d(kernel_size=2, padding=1, stride=2)
 
         self.view1 = View(-1, 4 * 4 * channels[6])
 
