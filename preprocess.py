@@ -22,7 +22,7 @@ def extract_data(data_dir):
                 print("done")
 
 
-def process_data(data_dir, index_dir, train_ratio, valid_ratio, test_ratio):
+def process_data(data_dir, index_dir, train_ratio, test_ratio):
     print("Processing ShapeNetCore Data")
     os.makedirs(index_dir, exist_ok=True)
     all_data = dict()
@@ -53,37 +53,20 @@ def process_data(data_dir, index_dir, train_ratio, valid_ratio, test_ratio):
         all_data[category_name] = dir_data
         print('done')
     print('Collecting information ... ', end="", flush=True)
-    # inverse_labels = {v: k for k, v in enumerate(labels)}
-    # index = list()
-    # for dir_name, dir_data in all_data.items():
-    #     label = inverse_labels[dir_name]
-    #     for files in dir_data.values():
-    #         index.append((files, label))
     train_index = dict()
-    valid_index = dict()
     test_index = dict()
     for category_name, dir_data in all_data.items():
-        sep1 = int(train_ratio * len(dir_data))
-        sep2 = int(valid_ratio * len(dir_data)) + sep1
+        sep = int(train_ratio * len(dir_data))
         index = list(dir_data.values())
         np.random.shuffle(index)
-        train_index[category_name] = index[:sep1]
-        valid_index[category_name] = index[sep1: sep2]
-        test_index[category_name] = index[sep2:]
-    # np.random.shuffle(index)
-    # sep1 = int(train_ratio * len(index))
-    # sep2 = sep1 + int(valid_ratio * len(index))
-    # train_index = index[:sep1]
-    # valid_index = index[sep1:sep2]
-    # test_index = index[sep2:]
+        train_index[category_name] = index[:sep]
+        test_index[category_name] = index[sep:]
     print('done')
     print('Writing to disk ... ', end="", flush=True)
     with open(os.path.join(index_dir, 'labels.json'), "w") as file:
         json.dump(labels, file)
     with open(os.path.join(index_dir, 'train_index.json'), "w") as file:
         json.dump(train_index, file)
-    with open(os.path.join(index_dir, 'valid_index.json'), "w") as file:
-        json.dump(valid_index, file)
     with open(os.path.join(index_dir, 'test_index.json'), "w") as file:
         json.dump(test_index, file)
     print('done')
@@ -98,7 +81,6 @@ def process_nyud(data_dir, index_dir):
         images = os.listdir(os.path.join(data_dir, dir_name))
         index[dir_name] = [os.path.join(data_dir, dir_name, image) for image in images if
                            os.path.splitext(image)[0].endswith("depth")]
-        # index[dir_name] = list(filter(lambda x: os.path.splitext(x)[0].endswith("depth"), images))
     with open(os.path.join(index_dir, 'nyud_index.json'), "w") as file:
         json.dump(index, file)
     print("done")
@@ -112,11 +94,10 @@ def main(args):
         if not skip_extract:
             extract_data(data_dir)
         train_ratio = args.train_ratio
-        valid_ratio = args.valid_ratio
         test_ratio = args.test_ratio
-        assert train_ratio + valid_ratio + test_ratio == 1.0, \
+        assert train_ratio + test_ratio == 1.0, \
             "The sum of all ratios is not equal to 1"
-        process_data(data_dir, index_dir, train_ratio, valid_ratio, test_ratio)
+        process_data(data_dir, index_dir, train_ratio, test_ratio)
     else:
         nyud_data_dir = args.nyud_data_dir
         index_dir = args.index_dir
@@ -145,13 +126,7 @@ if __name__ == '__main__':
         "--train_ratio",
         help="the ratio of data used in training",
         type=float,
-        default=0.8
-    )
-    parser.add_argument(
-        "--valid_ratio",
-        help="the ratio of data used in validation",
-        type=float,
-        default=0.1
+        default=0.9
     )
     parser.add_argument(
         "--test_ratio",
