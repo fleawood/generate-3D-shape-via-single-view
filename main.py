@@ -73,6 +73,8 @@ def train(train_dataloader, autoencoder, optimizer, model_dir, vis, category):
     data_gen = inf_data_gen(train_dataloader)
     env = category
     iter_loss = vis.line(
+        X=np.zeros(1),
+        Y=np.zeros(1),
         opts=dict(
             xlabel="iter",
             ylabel="loss",
@@ -82,6 +84,8 @@ def train(train_dataloader, autoencoder, optimizer, model_dir, vis, category):
         env=env
     )
     iter_IoU = vis.line(
+        X=np.zeros(1),
+        Y=np.zeros(1),
         opts=dict(
             xlabel="iter",
             ylabel="IoU",
@@ -91,6 +95,8 @@ def train(train_dataloader, autoencoder, optimizer, model_dir, vis, category):
         env = env
     )
     iter_mse = vis.line(
+        X=np.zeros(1),
+        Y=np.zeros(1),
         opts=dict(
             xlabel="iter",
             ylabel="mse",
@@ -108,7 +114,7 @@ def train(train_dataloader, autoencoder, optimizer, model_dir, vis, category):
         real_single_view = Variable(data['real_single_view']).cuda()
         optimizer.zero_grad()
         fake_all_views = autoencoder(real_single_view)
-        ae_loss = nn.MSELoss()(fake_all_views, real_all_views)
+        ae_loss = nn.L1Loss()(fake_all_views, real_all_views)
         loss = ae_loss
         # print("ae_loss: %f" % ae_loss.data[0])
         vis.line(
@@ -139,7 +145,7 @@ def train(train_dataloader, autoencoder, optimizer, model_dir, vis, category):
             )
             vis.save([env])
             state_dicts = dict(autoencoder=autoencoder.state_dict())
-            torch.save(state_dicts, os.path.join(model_dir, "ae_mse_%d.pkl" % i))
+            torch.save(state_dicts, os.path.join(model_dir, "ae_l1_%d.pkl" % i))
 
 
 def calc_IU(real_all_views, fake_all_views):
