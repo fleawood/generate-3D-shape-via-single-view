@@ -145,7 +145,7 @@ def train(train_dataloader, autoencoder, optimizer, model_dir, vis, category):
             )
             vis.save([env])
             state_dicts = dict(autoencoder=autoencoder.state_dict())
-            torch.save(state_dicts, os.path.join(model_dir, "ae_l1_%d.pkl" % i))
+            torch.save(state_dicts, os.path.join(model_dir, "ae_res_l1_%d.pkl" % i))
 
 
 def calc_IU(real_all_views, fake_all_views):
@@ -236,6 +236,7 @@ def main(args):
 
 
 if __name__ == '__main__':
+    # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--index_dir",
@@ -251,7 +252,7 @@ if __name__ == '__main__':
         "--learning_rate",
         help="initial learning rate",
         type=float,
-        default=0.0002
+        default=0.0001
     )
     parser.add_argument(
         "--mode",
@@ -262,7 +263,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--category",
         help="which kind of data used in training",
-        default="chair"
+        default="flowerpot"
     )
     args = parser.parse_args()
     main(args)
