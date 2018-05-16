@@ -162,24 +162,28 @@ def test(test_dataloader, autoencoder):
     image_size = 224 * 224
     intersections = 0.0
     unions = 0.0
-    num_iters = 50
-    data_gan = inf_data_gen(test_dataloader)
+    # num_iters = 50
+    # data_gan = inf_data_gen(test_dataloader)
     ave_mse = 0.0
+    ave_IoU = 0.0
     autoencoder.eval()
-    for i in range(num_iters):
-        data = next(data_gan)
+    for data in test_dataloader:
+        # data = next(data_gan)
         real_all_views = Variable(data['real_all_views']).cuda()
         real_single_view = Variable(data['real_single_view']).cuda()
         fake_all_views = autoencoder(real_single_view)
         intersection, union = calc_IU(real_all_views, fake_all_views)
         intersections += intersection
         unions += union
+        IoU = intersection / union
+        ave_IoU += IoU
         mse = nn.MSELoss(size_average=False)(fake_all_views, real_all_views)
         ave_mse += mse.data[0]
         del real_all_views, real_single_view, fake_all_views, mse
-    ave_mse /= num_iters * test_dataloader.batch_size * view_points * image_size
-    IoU = intersections / unions
-    return ave_mse, IoU
+    ave_mse /= len(dataset) * view_points * image_size
+    # IoU = intersections / unions
+    ave_IoU /= len(test_dataloader)
+    return ave_mse, ave_IoU
 
 
 def main(args):
@@ -221,10 +225,10 @@ def main(args):
         train(train_dataloader, autoencoder, optimizer, model_dir, vis, category)
     elif mode == 'visualization':
         assert model is not None, "Visualization without specifying a model"
-        visual_single_batch(vis, inf_data_gen(train_dataloader), autoencoder, "Visual", category)
+        visual_single_batch(vis, inf_data_gen(test_dataloader), autoencoder, "Visual", category)
     elif mode == 'testing':
         assert model is not None, "Testing without specifying a model"
-        visual_single_batch(vis, inf_data_gen(test_dataloader), autoencoder, "Test", category)
+        # visual_single_batch(vis, inf_data_gen(test_dataloader), autoencoder, "Test", category)
         mse, IoU = test(test_dataloader, autoencoder)
         print("mse: %f, IoU: %f" % (mse, IoU))
     elif mode == 'nyud':
@@ -263,7 +267,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--category",
         help="which kind of data used in training",
-        default="flowerpot"
+        default="car"
     )
     args = parser.parse_args()
     main(args)
