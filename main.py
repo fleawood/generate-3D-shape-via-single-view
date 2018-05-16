@@ -48,9 +48,10 @@ def visual(vis, real_all_views, real_single_view, autoencoder, prefix, env):
     for i in range(batch_size):
         vis.image(torch.unsqueeze(real_single_view.data[i], 1).cpu().numpy(),
                   opts=dict(title=prefix + " %d_real_single" % i), env=env)
-        vis.images(torch.unsqueeze(real_all_views.data[i], 1).cpu().numpy(), nrow=10,
-                   opts=dict(title=prefix + " %d_real_all" % i), env=env)
-        vis.images(torch.unsqueeze(fake_all_views.data[i], 1).cpu().numpy(), nrow=10,
+        if real_all_views is not None:
+            vis.images(torch.unsqueeze(real_all_views.data[i], 1).cpu().numpy(), nrow=20,
+                       opts=dict(title=prefix + " %d_real_all" % i), env=env)
+        vis.images(torch.unsqueeze(fake_all_views.data[i], 1).cpu().numpy(), nrow=20,
                    opts=dict(title=prefix + " %d_fake_all" % i), env=env)
     vis.save([env])
 
@@ -61,6 +62,32 @@ def visual_single_batch(vis, data_gen, autoencoder, prefix, env):
     real_all_views = Variable(single_batch['real_all_views']).cuda()
     real_single_view = Variable(single_batch['real_single_view']).cuda()
     visual(vis, real_all_views, real_single_view, autoencoder, prefix, env)
+
+
+def interpolate(vis, data_gen, autoencoder, prefix, env):
+    autoencoder.eval()
+    data1 = next(data_gen)
+    real_single_view1 = Variable(data1['real_single_view']).cuda()
+    visual(vis, None, real_single_view1, autoencoder, prefix, env)
+    # fake_all_view1 = autoencoder(real_single_view1)
+    data2 = next(data_gen)
+    real_single_view2 = Variable(data2['real_single_view']).cuda()
+    visual(vis, None, real_single_view2, autoencoder, prefix, env)
+    # fake_all_view2 = autoencoder(real_single_view2)
+
+    vector1 = autoencoder.encoder(real_single_view1)
+    del data1, real_single_view1
+    vector2 = autoencoder.encoder(real_single_view2)
+    del data2, real_single_view2
+    for k in range(9):
+        vector3 = vector1 + (vector2 - vector1) / 10 * (k + 1)
+        fake_all_views = autoencoder.decoder(vector3)
+        batch_size = fake_all_views.size()[0]
+        for i in range(batch_size):
+            vis.images(torch.unsqueeze(fake_all_views.data[i], 1).cpu().numpy(), nrow=20,
+                       opts=dict(title=prefix + " %d_fake_all" % i), env=env)
+        del vector3, fake_all_views
+    # visual(vis, None, real_single_view3, autoencoder, prefix, env)
 
 
 def train(train_dataloader, autoencoder, optimizer, model_dir, vis, category):
@@ -92,7 +119,7 @@ def train(train_dataloader, autoencoder, optimizer, model_dir, vis, category):
             title="iter_IoU",
             legend=["iter_IoU"],
         ),
-        env = env
+        env=env
     )
     iter_mse = vis.line(
         X=np.zeros(1),
@@ -199,7 +226,7 @@ def main(args):
     model_dir = os.path.join(os.getcwd(), 'models', 'ae', category)
     os.makedirs(model_dir, exist_ok=True)
     vis = visdom.Visdom()
-    batch_size = 8
+    batch_size = 4
 
     # ae-network
     autoencoder = Autoencoder().cuda()
@@ -229,8 +256,9 @@ def main(args):
     elif mode == 'testing':
         assert model is not None, "Testing without specifying a model"
         # visual_single_batch(vis, inf_data_gen(test_dataloader), autoencoder, "Test", category)
-        mse, IoU = test(test_dataloader, autoencoder)
-        print("mse: %f, IoU: %f" % (mse, IoU))
+        # mse, IoU = test(test_dataloader, autoencoder)
+        interpolate(vis, inf_data_gen(test_dataloader), autoencoder, "Int", category)
+        # print("mse: %f, IoU: %f" % (mse, IoU))
     elif mode == 'nyud':
         assert model is not None, "Testing nyud data without specifying a model"
         nyud_index = os.path.join(index_dir, "nyud_index.json")
