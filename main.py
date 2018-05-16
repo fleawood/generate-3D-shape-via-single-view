@@ -48,9 +48,9 @@ def visual(vis, real_all_views, real_single_view, autoencoder, prefix, env):
     for i in range(batch_size):
         vis.image(torch.unsqueeze(real_single_view.data[i], 1).cpu().numpy(),
                   opts=dict(title=prefix + " %d_real_single" % i), env=env)
-        vis.images(torch.unsqueeze(real_all_views.data[i], 1).cpu().numpy(), nrow=5,
+        vis.images(torch.unsqueeze(real_all_views.data[i], 1).cpu().numpy(), nrow=10,
                    opts=dict(title=prefix + " %d_real_all" % i), env=env)
-        vis.images(torch.unsqueeze(fake_all_views.data[i], 1).cpu().numpy(), nrow=5,
+        vis.images(torch.unsqueeze(fake_all_views.data[i], 1).cpu().numpy(), nrow=10,
                    opts=dict(title=prefix + " %d_fake_all" % i), env=env)
     vis.save([env])
 
@@ -219,7 +219,7 @@ def main(args):
 
     # dataloader
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=3)
-    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=3)
+    test_dataloader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=3)
 
     if mode == 'training':
         train(train_dataloader, autoencoder, optimizer, model_dir, vis, category)
